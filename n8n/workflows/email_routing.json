@@ -1,0 +1,107 @@
+{
+  "name": "Email Intelligence & Routing",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "mailbox": "INBOX",
+        "options": {}
+      },
+      "id": "imap-1",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/langchain/analyze-email",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"subject\": \"{{ $json.subject }}\", \"body\": \"{{ $json.text }}\", \"sender\": \"{{ $json.from.value[0].address }}\"}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "http-email",
+      "name": "AI Email Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            { "value1": "={{ $json.category }}", "operation": "equal", "value2": "Support", "output": 0 },
+            { "value1": "={{ $json.category }}", "operation": "equal", "value2": "Sales",   "output": 1 },
+            { "value1": "={{ $json.category }}", "operation": "equal", "value2": "Billing", "output": 2 },
+            { "value1": "={{ $json.category }}", "operation": "equal", "value2": "Urgent",  "output": 3 }
+          ],
+          "fallbackOutput": 0
+        }
+      },
+      "id": "sw-email",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#support",
+        "text": "=📧 Support Email\n*From:* {{ $('Gmail Trigger').item.json.from.value[0].address }}\n*Subject:* {{ $('Gmail Trigger').item.json.subject }}\n*Priority:* {{ $('AI Email Analysis').item.json.priority }}\n*Suggested Response:* {{ $('AI Email Analysis').item.json.suggested_response }}"
+      },
+      "id": "slack-support",
+      "name": "Support Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 150]
+    },
+    {
+      "parameters": {
+        "channel": "#sales",
+        "text": "=💼 Sales Email\n*From:* {{ $('Gmail Trigger').item.json.from.value[0].address }}\n*Subject:* {{ $('Gmail Trigger').item.json.subject }}\n*Sentiment:* {{ $('AI Email Analysis').item.json.sentiment }}"
+      },
+      "id": "slack-sales",
+      "name": "Sales Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#billing",
+        "text": "=💳 Billing Email\n*From:* {{ $('Gmail Trigger').item.json.from.value[0].address }}\n*Subject:* {{ $('Gmail Trigger').item.json.subject }}"
+      },
+      "id": "slack-billing",
+      "name": "Billing Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 450]
+    },
+    {
+      "parameters": {
+        "channel": "#alerts",
+        "text": "=🚨 URGENT EMAIL!\n*From:* {{ $('Gmail Trigger').item.json.from.value[0].address }}\n*Subject:* {{ $('Gmail Trigger').item.json.subject }}\n*Priority:* {{ $('AI Email Analysis').item.json.priority }}"
+      },
+      "id": "slack-urgent",
+      "name": "Management Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 600]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger":    { "main": [[{ "node": "AI Email Analysis", "type": "main", "index": 0 }]] },
+    "AI Email Analysis":{ "main": [[{ "node": "Route by Category", "type": "main", "index": 0 }]] },
+    "Route by Category": {
+      "main": [
+        [{ "node": "Support Team",    "type": "main", "index": 0 }],
+        [{ "node": "Sales Team",      "type": "main", "index": 0 }],
+        [{ "node": "Billing Team",    "type": "main", "index": 0 }],
+        [{ "node": "Management Alert","type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["ai", "email", "routing"]
+}

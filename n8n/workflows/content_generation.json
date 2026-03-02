@@ -1,0 +1,63 @@
+{
+  "name": "Content Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] }
+      },
+      "id": "sched-1",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "topic",         "value": "AI Automation Trends" },
+            { "name": "format",        "value": "blog" },
+            { "name": "target_length", "value": "1500" }
+          ]
+        }
+      },
+      "id": "set-1",
+      "name": "Set Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/langchain/generate-content",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ $json }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "http-content",
+      "name": "AI Content Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#content-team",
+        "text": "=✍️ New content generated!\n*Title:* {{ $json.title }}\n*Words:* {{ $json.word_count }} | *Read time:* {{ $json.reading_time }}\n\n🐦 {{ $json.social_posts.twitter }}\n💼 {{ $json.social_posts.linkedin }}"
+      },
+      "id": "slack-content",
+      "name": "Notify Content Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 300]
+    }
+  ],
+  "connections": {
+    "Daily Schedule":        { "main": [[{ "node": "Set Parameters",      "type": "main", "index": 0 }]] },
+    "Set Parameters":        { "main": [[{ "node": "AI Content Generation","type": "main", "index": 0 }]] },
+    "AI Content Generation": { "main": [[{ "node": "Notify Content Team", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["ai", "content", "marketing"]
+}

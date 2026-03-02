@@ -1,0 +1,121 @@
+{
+  "name": "Lead Qualification Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "lead-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/langchain/qualify-lead",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ $json }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "http-1",
+      "name": "AI Lead Qualification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            { "operation": "larger", "value1": "={{ $json.score }}", "value2": 70, "output": 0 },
+            { "operation": "largerEqual", "value1": "={{ $json.score }}", "value2": 40, "output": 1 }
+          ],
+          "fallbackOutput": 2
+        }
+      },
+      "id": "sw-1",
+      "name": "Route by Score",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#sales-hot-leads",
+        "text": "=🔥 HOT LEAD (Score: {{ $('AI Lead Qualification').item.json.score }})\n*Name:* {{ $('Webhook Trigger').item.json.name }}\n*Company:* {{ $('Webhook Trigger').item.json.company }}\n*Category:* {{ $('AI Lead Qualification').item.json.category }}\n*Reasoning:* {{ $('AI Lead Qualification').item.json.reasoning }}\n📧 {{ $('AI Lead Qualification').item.json.suggested_message }}"
+      },
+      "id": "slack-hot",
+      "name": "Notify Sales (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [950, 150]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": "YOUR_AIRTABLE_BASE_ID",
+        "table": "Nurture Leads",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "Name",    "fieldValue": "={{ $('Webhook Trigger').item.json.name }}" },
+            { "fieldId": "Company", "fieldValue": "={{ $('Webhook Trigger').item.json.company }}" },
+            { "fieldId": "Score",   "fieldValue": "={{ $('AI Lead Qualification').item.json.score }}" }
+          ]
+        }
+      },
+      "id": "airtable-nurture",
+      "name": "Add to Nurture",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [950, 330]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": "YOUR_AIRTABLE_BASE_ID",
+        "table": "Archived Leads",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "Name",   "fieldValue": "={{ $('Webhook Trigger').item.json.name }}" },
+            { "fieldId": "Score",  "fieldValue": "={{ $('AI Lead Qualification').item.json.score }}" },
+            { "fieldId": "Reason", "fieldValue": "={{ $('AI Lead Qualification').item.json.reasoning }}" }
+          ]
+        }
+      },
+      "id": "airtable-archive",
+      "name": "Archive Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [950, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('AI Lead Qualification').item.json }}"
+      },
+      "id": "respond-1",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger":       { "main": [[{ "node": "AI Lead Qualification", "type": "main", "index": 0 }]] },
+    "AI Lead Qualification": { "main": [[{ "node": "Route by Score",        "type": "main", "index": 0 }]] },
+    "Route by Score": {
+      "main": [
+        [{ "node": "Notify Sales (Slack)", "type": "main", "index": 0 }],
+        [{ "node": "Add to Nurture",       "type": "main", "index": 0 }],
+        [{ "node": "Archive Lead",         "type": "main", "index": 0 }]
+      ]
+    },
+    "Notify Sales (Slack)": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["ai", "leads", "langchain"]
+}
