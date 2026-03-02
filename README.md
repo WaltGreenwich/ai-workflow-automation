@@ -305,7 +305,7 @@ MIT — see [LICENSE](LICENSE)
 
 ## 👤 Author
 
-**Walt Greenwich** · [GitHub](https://github.com/WaltGreenwich) · [LinkedIn](#)
+**Walt Greenwich** · [GitHub](https://github.com/WaltGreenwich) · [LinkedIn](https://www.linkedin.com/in/waltgreenwich/)
 
 ---
 
